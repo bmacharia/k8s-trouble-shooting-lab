@@ -1,0 +1,91 @@
+# ================================================================
+# Lab 3.2: Service Connectivity Debugging
+# Fix a Broken Service Chain
+#
+# Instructions:
+#   1. Apply this file: kubectl apply -f lab-3.2-service-debug.yaml
+#   2. Test connectivity (it should fail):
+#      kubectl run test --rm -i --restart=Never --image=curlimages/curl -n svc-lab -- \
+#        curl -s --max-time 5 http://webapp-svc
+#   3. Diagnose why the service isn't working
+#   4. Fix it!
+#   5. Clean up: kubectl delete namespace svc-lab
+#
+# Diagnostic commands:
+#   kubectl get svc webapp-svc -n svc-lab
+#   kubectl get endpoints webapp-svc -n svc-lab
+#   kubectl get svc webapp-svc -n svc-lab -o jsonpath='{.spec.selector}'
+#   kubectl get pods -n svc-lab --show-labels
+# ================================================================
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: svc-lab
+---
+# Web server deployment (this is correct)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp
+  namespace: svc-lab
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: webapp
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        app: webapp
+        tier: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+---
+# BROKEN service — wrong selector!
+# BUG: selector says tier: backend, but pods have tier: frontend
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp-svc
+  namespace: svc-lab
+spec:
+  selector:
+    app: webapp
+    tier: backend         # BUG: should be "frontend"
+  ports:
+  - port: 80
+    targetPort: 80
+
+# ================================================================
+# SOLUTION:
+# ================================================================
+#
+# Diagnose:
+#   kubectl get endpoints webapp-svc -n svc-lab
+#   # Shows <none> — no endpoints!
+#
+#   kubectl get svc webapp-svc -n svc-lab -o jsonpath='{.spec.selector}'
+#   # Shows: {"app":"webapp","tier":"backend"}
+#
+#   kubectl get pods -n svc-lab --show-labels
+#   # Shows pods have label: tier=frontend (not backend!)
+#
+# Fix: Patch the service selector
+#   kubectl patch svc webapp-svc -n svc-lab --type='json' \
+#     -p='[{"op": "replace", "path": "/spec/selector/tier", "value": "frontend"}]'
+#
+# Verify:
+#   kubectl get endpoints webapp-svc -n svc-lab
+#   # Should now show pod IPs
+#
+#   kubectl run test2 --rm -i --restart=Never --image=curlimages/curl -n svc-lab -- \
+#     curl -s http://webapp-svc
+#   # Should return nginx welcome page
+#
+# Clean up: kubectl delete namespace svc-lab

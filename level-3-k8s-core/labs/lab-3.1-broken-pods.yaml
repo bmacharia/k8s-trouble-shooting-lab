@@ -1,0 +1,138 @@
+# ================================================================
+# Lab 3.1: Pod Troubleshooting Challenge
+# Fix 5 Broken Pods
+#
+# Instructions:
+#   1. Apply this file: kubectl apply -f lab-3.1-broken-pods.yaml
+#   2. Investigate each broken pod
+#   3. Diagnose and fix each one
+#   4. Clean up: kubectl delete namespace troubleshoot-lab
+#
+# Investigation commands:
+#   kubectl get pods -n troubleshoot-lab
+#   kubectl describe pod <name> -n troubleshoot-lab
+#   kubectl logs <name> -n troubleshoot-lab
+#   kubectl logs <name> -n troubleshoot-lab --previous
+# ================================================================
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: troubleshoot-lab
+---
+# Broken Pod 1: Wrong Image
+# Hint: Check the image name
+apiVersion: v1
+kind: Pod
+metadata:
+  name: broken-1
+  namespace: troubleshoot-lab
+  labels:
+    lab: broken-pods
+    bug: wrong-image
+spec:
+  containers:
+  - name: web
+    image: nginx:doesnotexist
+    ports:
+    - containerPort: 80
+---
+# Broken Pod 2: Wrong Command
+# Hint: The command specified doesn't exist
+apiVersion: v1
+kind: Pod
+metadata:
+  name: broken-2
+  namespace: troubleshoot-lab
+  labels:
+    lab: broken-pods
+    bug: wrong-command
+spec:
+  containers:
+  - name: web
+    image: nginx:latest
+    command: ["/bin/bash", "-c", "nonexistent-command"]
+---
+# Broken Pod 3: Resource Limit Too Low
+# Hint: nginx can't start with only 1Mi of memory
+apiVersion: v1
+kind: Pod
+metadata:
+  name: broken-3
+  namespace: troubleshoot-lab
+  labels:
+    lab: broken-pods
+    bug: resource-limit
+spec:
+  containers:
+  - name: web
+    image: nginx:latest
+    resources:
+      limits:
+        memory: "1Mi"
+---
+# Broken Pod 4: Wrong Port in Readiness Probe
+# Hint: nginx listens on port 80, not 8080
+apiVersion: v1
+kind: Pod
+metadata:
+  name: broken-4
+  namespace: troubleshoot-lab
+  labels:
+    lab: broken-pods
+    bug: wrong-probe-port
+spec:
+  containers:
+  - name: web
+    image: nginx:latest
+    ports:
+    - containerPort: 80
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 3
+---
+# Broken Pod 5: Missing ConfigMap
+# Hint: The referenced ConfigMap doesn't exist
+apiVersion: v1
+kind: Pod
+metadata:
+  name: broken-5
+  namespace: troubleshoot-lab
+  labels:
+    lab: broken-pods
+    bug: missing-configmap
+spec:
+  containers:
+  - name: web
+    image: nginx:latest
+    envFrom:
+    - configMapRef:
+        name: missing-config
+
+# ================================================================
+# SOLUTIONS (try yourself first!):
+# ================================================================
+#
+# Fix 1: Change image to nginx:latest
+#   kubectl set image pod/broken-1 web=nginx:latest -n troubleshoot-lab
+#
+# Fix 2: Remove wrong command (delete and recreate without command)
+#   kubectl delete pod broken-2 -n troubleshoot-lab
+#   kubectl run broken-2 --image=nginx:latest -n troubleshoot-lab
+#
+# Fix 3: Increase memory limit to 128Mi
+#   kubectl delete pod broken-3 -n troubleshoot-lab
+#   (recreate with memory limit: "128Mi" and request: "64Mi")
+#
+# Fix 4: Fix readiness probe port from 8080 to 80
+#   kubectl delete pod broken-4 -n troubleshoot-lab
+#   (recreate with readiness probe port: 80)
+#
+# Fix 5: Create the missing ConfigMap
+#   kubectl create configmap missing-config -n troubleshoot-lab --from-literal=KEY=value
+#
+# Verify: kubectl get pods -n troubleshoot-lab
+# Clean up: kubectl delete namespace troubleshoot-lab
