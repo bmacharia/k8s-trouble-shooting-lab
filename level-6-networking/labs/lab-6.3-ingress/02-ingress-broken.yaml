@@ -1,0 +1,57 @@
+---
+# BREAK 1: Main Ingress — wrong backend service name.
+# The service is named "frontend-svc" but the Ingress points to "frontend".
+# Result: 503 Service Unavailable from nginx-ingress.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp-ingress
+  namespace: webapp
+  labels:
+    lab: "6.3"
+    break: "wrong-service-name"
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  rules:
+  - host: webapp.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend    # BUG: service is named "frontend-svc"
+            port:
+              number: 80
+---
+# BREAK 2: Upload Ingress — missing proxy-body-size annotation.
+# Default nginx limit is 1m. Files > 1MB get 413 Request Entity Too Large.
+# The annotation is commented out — someone "temporarily" removed it and forgot.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: upload-ingress
+  namespace: webapp
+  labels:
+    lab: "6.3"
+    break: "missing-body-size-annotation"
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # nginx.ingress.kubernetes.io/proxy-body-size: "50m"   # BUG: commented out!
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  rules:
+  - host: webapp.local
+    http:
+      paths:
+      - path: /api/v1/upload
+        pathType: Prefix
+        backend:
+          service:
+            name: upload-svc
+            port:
+              number: 3000

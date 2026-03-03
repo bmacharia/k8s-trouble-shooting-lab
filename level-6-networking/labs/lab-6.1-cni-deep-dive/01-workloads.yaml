@@ -1,0 +1,58 @@
+---
+# Pod in team-alpha: the sender
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sender
+  namespace: team-alpha
+  labels:
+    app: sender
+    lab: "6.1"
+spec:
+  containers:
+  - name: sender
+    image: nicolaka/netshoot
+    command: ["sleep", "infinity"]
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+---
+# Pod in team-beta: the receiver
+apiVersion: v1
+kind: Pod
+metadata:
+  name: receiver
+  namespace: team-beta
+  labels:
+    app: receiver
+    lab: "6.1"
+spec:
+  containers:
+  - name: receiver
+    image: nicolaka/netshoot
+    command: ["sleep", "infinity"]
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+---
+# Service exposing the receiver
+apiVersion: v1
+kind: Service
+metadata:
+  name: receiver-svc
+  namespace: team-beta
+spec:
+  selector:
+    app: receiver
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP

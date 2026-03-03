@@ -1,0 +1,18 @@
+---
+# SCENARIO D: PodDisruptionBudget that prevents node drain
+# The PDB requires 100% availability (minAvailable = 3, replicas = 3).
+# kubectl drain will hang forever because it cannot evict any pod.
+# This blocks Kubernetes upgrades and node maintenance.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-server-pdb
+  namespace: default
+  labels:
+    lab: "7.3"
+    break: "pdb-too-strict"
+spec:
+  minAvailable: 3    # BUG: same as replica count — drain can never remove any pod
+  selector:
+    matchLabels:
+      app: api-server

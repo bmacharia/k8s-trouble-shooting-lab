@@ -1,0 +1,30 @@
+---
+# BREAK 1: Job with restartPolicy: Always
+# Jobs MUST use restartPolicy: Never or OnFailure.
+# "Always" is for long-running pods (Deployments). This will be rejected by the API server.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: data-processor
+  namespace: default
+  labels:
+    lab: "7.2"
+    break: "wrong-restartPolicy"
+spec:
+  completions: 5
+  parallelism: 2
+  backoffLimit: 3
+  template:
+    spec:
+      containers:
+      - name: processor
+        image: alpine:3.18
+        command: ["sh", "-c", "echo Processing item; sleep 5; echo Done"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi
+      restartPolicy: Always   # BUG: must be Never or OnFailure for Jobs

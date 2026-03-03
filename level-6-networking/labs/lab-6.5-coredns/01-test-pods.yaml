@@ -1,0 +1,35 @@
+---
+# DNS test client — use this pod to run all DNS investigations
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dns-client
+  namespace: dns-lab
+  labels:
+    app: dns-client
+    lab: "6.5"
+spec:
+  containers:
+  - name: dns-client
+    image: nicolaka/netshoot
+    command: ["sleep", "infinity"]
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+---
+# A simple service to test internal DNS resolution
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+  namespace: dns-lab
+spec:
+  selector:
+    app: dns-client   # just so the service exists — for resolution testing
+  ports:
+  - port: 80
+    targetPort: 8080

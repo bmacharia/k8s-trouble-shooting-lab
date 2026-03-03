@@ -1,0 +1,34 @@
+---
+# BREAK 1: HPA targeting wrong deployment name
+# The HPA references "webapp" but the Deployment is named "web-app" (with a hyphen).
+# The HPA will be stuck with condition: ScalingActive=false, reason: FailedGetScale
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web-app-hpa
+  namespace: autoscale-lab
+  labels:
+    lab: "7.4"
+    break: "wrong-target-name"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: webapp      # BUG: should be "web-app" (with hyphen)
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 0   # BUG 2: 0-second cooldown → scales down instantly
+                                       # after load drops, causing thrashing
+      policies:
+      - type: Percent
+        value: 100                     # Allows scaling down ALL replicas at once
+        periodSeconds: 15

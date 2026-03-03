@@ -1,0 +1,103 @@
+---
+# Lab 7.3 — Scheduling: Taints, Affinity, and Topology
+# Three independent broken scenarios in one file.
+# Each section has a comment explaining what is broken and why.
+
+# ─────────────────────────────────────────────────────────────
+# SCENARIO A: Pod stuck Pending — nodeSelector matches nothing
+# ─────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-workload
+  namespace: default
+  labels:
+    lab: "7.3"
+    scenario: "A"
+spec:
+  containers:
+  - name: trainer
+    image: alpine:3.18
+    command: ["sleep", "infinity"]
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+  nodeSelector:
+    accelerator: nvidia-tesla-v100   # BUG: no node in a standard cluster has this label
+---
+# ─────────────────────────────────────────────────────────────
+# SCENARIO B: Pod stuck Pending — taint not tolerated
+# The ops team tainted the worker nodes for maintenance but forgot
+# to remove the taint after the window.
+# Apply the taint manually before testing:
+#   kubectl taint nodes <worker-node> maintenance=true:NoSchedule
+# ─────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-server
+  namespace: default
+  labels:
+    lab: "7.3"
+    scenario: "B"
+spec:
+  containers:
+  - name: nginx
+    image: nginx:alpine
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 64Mi
+  # No tolerations — the maintenance taint will block scheduling
+---
+# ─────────────────────────────────────────────────────────────
+# SCENARIO C: Deployment with hard anti-affinity that can never be satisfied
+# 3 replicas but hard anti-affinity requires each on a different node.
+# If cluster has < 3 worker nodes, some pods stay Pending.
+# ─────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+  namespace: default
+  labels:
+    lab: "7.3"
+    scenario: "C"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-server
+  template:
+    metadata:
+      labels:
+        app: api-server
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:  # HARD requirement
+          - labelSelector:
+              matchLabels:
+                app: api-server
+            topologyKey: kubernetes.io/hostname
+            # BREAK: requiredDuring... on hostname means "I MUST be on a unique node"
+            # If you have 2 nodes and 3 replicas, the 3rd pod can never schedule.
+            # Fix: use preferredDuringScheduling... OR ensure enough nodes exist.
+      containers:
+      - name: api
+        image: hashicorp/http-echo:latest
+        args: ["-text=api-server", "-listen=:8080"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi

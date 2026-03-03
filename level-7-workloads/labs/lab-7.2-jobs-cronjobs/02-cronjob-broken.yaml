@@ -1,0 +1,46 @@
+---
+# BREAK 2: CronJob with THREE bugs.
+#
+# Bug 1: Invalid cron schedule "0 25 * * *" — hour 25 doesn't exist.
+#        The CronJob resource is accepted by the API server but NEVER fires.
+#
+# Bug 2: concurrencyPolicy: Allow with no ttlSecondsAfterFinished.
+#        Old completed jobs accumulate indefinitely, filling etcd.
+#
+# Bug 3: startingDeadlineSeconds not set.
+#        If the cluster was down when the job should have run, it might not catch up
+#        (depends on how many missed schedules occurred — >100 missed = never fires again).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nightly-report
+  namespace: default
+  labels:
+    lab: "7.2"
+spec:
+  schedule: "0 25 * * *"          # BUG 1: hour 25 is invalid — will never run
+  concurrencyPolicy: Allow         # BUG 2: allows concurrent runs + no TTL = etcd bloat
+  # startingDeadlineSeconds: 3600  # BUG 3: not set — risky with cluster downtime
+  jobTemplate:
+    spec:
+      # ttlSecondsAfterFinished: 3600   # BUG 2: missing — completed jobs pile up
+      template:
+        spec:
+          containers:
+          - name: reporter
+            image: alpine:3.18
+            command:
+            - sh
+            - -c
+            - |
+              echo "Generating nightly report..."
+              date
+              echo "Report complete."
+            resources:
+              requests:
+                cpu: 50m
+                memory: 32Mi
+              limits:
+                cpu: 200m
+                memory: 64Mi
+          restartPolicy: OnFailure

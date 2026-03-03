@@ -1,26 +1,51 @@
 # The Complete Linux & Kubernetes SRE Troubleshooting Lab
 
-**From Beginner to Enterprise-Grade Site Reliability Engineer**
+**From Beginner to Kubernetes Expert**
 
-*A hands-on, lab-driven guide with real-world scenarios*
+*A hands-on, lab-driven guide built from real production failure patterns*
 
 ---
 
 ## Overview
 
-This repository contains a comprehensive, 5-level progressive training program for mastering Linux and Kubernetes troubleshooting as a Site Reliability Engineer. Each level builds on the previous one and includes theory, commands, real-world scenarios, and hands-on labs.
+A comprehensive, 12-level progressive training program for mastering Linux and Kubernetes
+from beginner to expert. Each level builds on the previous one with broken manifests to fix,
+systematic runbooks, and production-grade scenarios.
+
+Every lab follows the same format:
+- `00-setup.yaml` — namespace and prerequisites
+- `01-*.yaml` — the workloads
+- `02-*-broken.yaml` — the deliberately broken state
+- `03-solution.yaml` — the fix
+- `RUNBOOK.md` — systematic debugging guide with copy-paste commands
 
 ## Structure
 
-| Level | Title | Target | Time | Directory |
-|-------|-------|--------|------|-----------|
-| 1 | [Linux Foundations for SRE](level-1-linux-foundations/) | Beginner | 20-25 hours | `level-1-linux-foundations/` |
-| 2 | [Linux Deep Troubleshooting](level-2-deep-troubleshooting/) | Intermediate | 20-25 hours | `level-2-deep-troubleshooting/` |
-| 3 | [Kubernetes Core Troubleshooting](level-3-k8s-core/) | Intermediate | 25-30 hours | `level-3-k8s-core/` |
-| 4 | [Kubernetes Advanced Operations](level-4-k8s-advanced/) | Advanced | 25-30 hours | `level-4-k8s-advanced/` |
-| 5 | [Enterprise SRE Practices](level-5-enterprise-sre/) | Expert | 20-25 hours | `level-5-enterprise-sre/` |
+### Foundation (Levels 1-2): Linux
+| Level | Title | Target | Time |
+|-------|-------|--------|------|
+| 1 | [Linux Foundations for SRE](level-1-linux-foundations/) | Beginner | 20-25 hrs |
+| 2 | [Linux Deep Troubleshooting](level-2-deep-troubleshooting/) | Intermediate | 20-25 hrs |
 
-**Total estimated time: ~110 hours**
+### Core Kubernetes (Levels 3-5)
+| Level | Title | Target | Time |
+|-------|-------|--------|------|
+| 3 | [Kubernetes Core Troubleshooting](level-3-k8s-core/) | Intermediate | 25-30 hrs |
+| 4 | [Kubernetes Advanced Operations](level-4-k8s-advanced/) | Advanced | 25-30 hrs |
+| 5 | [Enterprise SRE Practices](level-5-enterprise-sre/) | Advanced | 20-25 hrs |
+
+### Expert Kubernetes (Levels 6-12)
+| Level | Title | Target | Time |
+|-------|-------|--------|------|
+| 6 | [Networking Mastery](level-6-networking/) | Expert | 20-25 hrs |
+| 7 | [Workloads & Scheduling](level-7-workloads/) | Expert | 20-25 hrs |
+| 8 | [Security Hardening](level-8-security/) | Expert | 20-25 hrs |
+| 9 | [Cluster Lifecycle](level-9-cluster-lifecycle/) | Expert | 20-25 hrs |
+| 10 | [Observability Stack](level-10-observability/) | Expert | 20-25 hrs |
+| 11 | [Platform Engineering](level-11-platform/) | Expert | 25-30 hrs |
+| 12 | [The Gauntlet](level-12-gauntlet/) | Expert | 20 hrs (repeat) |
+
+**Total: ~240 hours of hands-on practice**
 
 ## Prerequisites
 
@@ -88,10 +113,19 @@ k8s-trouble-shooting-lab/
 
 ## How to Use This Guide
 
-1. **Read the theory** in each level's `README.md`
-2. **Run the labs** to practice hands-on troubleshooting
-3. **Break things** intentionally and fix them
-4. **Build muscle memory** with the [command cheatsheet](cheatsheet.md)
+1. **Read the level README** — understand the concepts and failure modes
+2. **Apply the setup manifests** — spin up the broken scenario
+3. **Attempt diagnosis** using only the RUNBOOK — no peeking at the solution
+4. **Apply the solution** only after forming a hypothesis and confirming it
+5. **Repeat the gauntlet** (Level 12) until diagnosis takes under 10 minutes
+
+## Expert Curriculum
+
+See **[EXPERT-CURRICULUM.md](EXPERT-CURRICULUM.md)** for:
+- The complete skill tree from practitioner to expert
+- What each level covers and what gap it fills
+- Recommended practice schedule (16 weeks)
+- The 10 questions you must answer without searching to be called an expert
 
 ## Standalone Tools
 

@@ -1,0 +1,44 @@
+---
+# BREAK 1: ClusterIP service with wrong targetPort.
+# The backend listens on 8080 but this service sends to 80.
+# Endpoints will exist (selector matches) but connections will be refused.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-svc
+  namespace: shop
+  labels:
+    lab: "6.2"
+    break: "wrong-targetPort"
+spec:
+  selector:
+    app: backend
+    tier: api
+  ports:
+  - name: http
+    port: 80           # what clients connect to
+    targetPort: 80     # BUG: should be 8080 — the port the container actually listens on
+  type: ClusterIP
+---
+# BREAK 2: NodePort service exposing the backend externally.
+# externalTrafficPolicy: Local is set but the node running the client
+# has NO backend pod on it. External clients hitting that node get dropped.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-nodeport
+  namespace: shop
+  labels:
+    lab: "6.2"
+    break: "externalTrafficPolicy"
+spec:
+  selector:
+    app: backend
+    tier: api
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    nodePort: 30080
+  type: NodePort
+  externalTrafficPolicy: Local   # ISSUE: drops traffic if no local pod on that node

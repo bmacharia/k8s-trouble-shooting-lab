@@ -1,0 +1,87 @@
+---
+# Lab 8.1 — RBAC: Least Privilege Audit and Fix
+#
+# This file sets up a realistic RBAC mess:
+# - A service account that accidentally has cluster-admin
+# - A service account that has no permissions but needs some
+# - A developer RoleBinding in the wrong namespace
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-dev
+  labels:
+    lab: "8.1"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-prod
+  labels:
+    lab: "8.1"
+---
+# Service account for the CI/CD system
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cicd-runner
+  namespace: team-dev
+  labels:
+    lab: "8.1"
+---
+# BUG 1: The CI/CD runner was given cluster-admin during an emergency
+# and no one cleaned it up. It can now delete anything in the cluster.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cicd-runner-cluster-admin
+  labels:
+    lab: "8.1"
+    break: "over-privileged"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: cicd-runner
+  namespace: team-dev
+---
+# Service account for the web application — needs to read ConfigMaps
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: web-app
+  namespace: team-prod
+  labels:
+    lab: "8.1"
+---
+# BUG 2: The RoleBinding for web-app is created in team-dev, not team-prod.
+# Roles are namespace-scoped. This binding does nothing in team-prod.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: configmap-reader
+  namespace: team-dev   # BUG: role is in team-dev, not team-prod
+  labels:
+    lab: "8.1"
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: web-app-configmap-reader
+  namespace: team-dev   # BUG: binding is in team-dev, not team-prod
+  labels:
+    lab: "8.1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: configmap-reader
+subjects:
+- kind: ServiceAccount
+  name: web-app
+  namespace: team-prod  # Subject is in team-prod but binding is in team-dev

@@ -1,0 +1,30 @@
+---
+# Headless service — required for StatefulSet stable DNS names.
+# Each pod gets a DNS name: <pod-name>.<service-name>.<namespace>.svc.cluster.local
+# e.g. redis-0.redis-headless.databases.svc.cluster.local
+#
+# BREAK: The selector uses "app: redis-cluster" but the StatefulSet pods
+# will have the label "app: redis". No pod will match this service.
+# Symptoms:
+#   - StatefulSet pods deploy fine
+#   - Pod-to-pod communication via hostname fails
+#   - Cluster formation fails (if using Redis cluster mode)
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-headless
+  namespace: databases
+  labels:
+    lab: "7.1"
+    break: "wrong-selector"
+spec:
+  clusterIP: None        # This is what makes it headless
+  selector:
+    app: redis-cluster   # BUG: should be "app: redis"
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  - port: 16379
+    targetPort: 16379
+    name: cluster-bus

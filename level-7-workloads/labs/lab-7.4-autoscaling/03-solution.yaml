@@ -1,0 +1,40 @@
+---
+# FIX: HPA with correct target name and sane scale-down behavior
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web-app-hpa
+  namespace: autoscale-lab
+  labels:
+    lab: "7.4"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: web-app     # FIXED: matches the actual Deployment name
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300   # FIXED: 5-minute cooldown before scaling down
+      policies:
+      - type: Percent
+        value: 25                       # FIXED: scale down at most 25% of replicas per 60s
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0    # Scale up immediately (no cooldown on the way up)
+      policies:
+      - type: Percent
+        value: 100                     # Can double replica count per 15s
+        periodSeconds: 15
+      - type: Pods
+        value: 4                       # Or add up to 4 pods per 15s
+        periodSeconds: 15
+      selectPolicy: Max                # Use whichever allows scaling up faster

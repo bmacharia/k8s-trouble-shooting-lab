@@ -1,0 +1,51 @@
+---
+# FIX 1: Correct backend service name
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp-ingress
+  namespace: webapp
+  labels:
+    lab: "6.3"
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  rules:
+  - host: webapp.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-svc   # FIXED: matches the actual service name
+            port:
+              number: 80
+---
+# FIX 2: Restore the proxy-body-size annotation
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: upload-ingress
+  namespace: webapp
+  labels:
+    lab: "6.3"
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"   # FIXED: allows up to 50MB
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  rules:
+  - host: webapp.local
+    http:
+      paths:
+      - path: /api/v1/upload
+        pathType: Prefix
+        backend:
+          service:
+            name: upload-svc
+            port:
+              number: 3000

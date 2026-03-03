@@ -1,0 +1,113 @@
+---
+# FIX A: Use a label that actually exists (or remove the nodeSelector)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-workload
+  namespace: default
+  labels:
+    lab: "7.3"
+spec:
+  containers:
+  - name: trainer
+    image: alpine:3.18
+    command: ["sleep", "infinity"]
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+  # FIXED: either label a node with accelerator=nvidia-tesla-v100, OR
+  # use a nodeAffinity with preferredDuringScheduling so it still runs without GPU:
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+          - key: accelerator
+            operator: In
+            values: ["nvidia-tesla-v100"]
+---
+# FIX B: Add toleration for the maintenance taint
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-server
+  namespace: default
+  labels:
+    lab: "7.3"
+spec:
+  containers:
+  - name: nginx
+    image: nginx:alpine
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 64Mi
+  tolerations:
+  - key: "maintenance"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+  # After node maintenance is done, remove the taint:
+  # kubectl taint nodes <node> maintenance=true:NoSchedule-
+---
+# FIX C: Change to preferred anti-affinity so pods CAN co-locate if needed
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+  namespace: default
+  labels:
+    lab: "7.3"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-server
+  template:
+    metadata:
+      labels:
+        app: api-server
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:   # FIXED: soft preference
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: api-server
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: api
+        image: hashicorp/http-echo:latest
+        args: ["-text=api-server", "-listen=:8080"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi
+---
+# FIX D: PDB that allows at least 1 pod to be disrupted
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-server-pdb
+  namespace: default
+  labels:
+    lab: "7.3"
+spec:
+  maxUnavailable: 1    # FIXED: allows 1 pod to be disrupted at a time
+  # This means: with 3 replicas, drain can remove 1 pod (2 remain = still "available")
+  selector:
+    matchLabels:
+      app: api-server

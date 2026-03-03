@@ -1,0 +1,27 @@
+---
+# SOLUTION: Fix the namespaceSelector to match the actual label
+# on team-alpha's namespace (team=alpha, not team=internal)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: receiver-ingress
+  namespace: team-beta
+  labels:
+    lab: "6.1"
+spec:
+  podSelector:
+    matchLabels:
+      app: receiver
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          team: alpha           # FIXED: matches the actual namespace label
+      podSelector:
+        matchLabels:
+          app: sender
+    ports:
+    - port: 8080
+      protocol: TCP

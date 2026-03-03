@@ -1,0 +1,91 @@
+---
+# Lab 8.2 — Pod Security Standards
+# These pods violate the Restricted policy.
+# Goal: identify violations and fix each one.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: secure-ns
+  labels:
+    lab: "8.2"
+    # When you add these labels, the API server will enforce/warn/audit
+    # For this lab, start with warn only so you can see violations without blocking:
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+    # After fixing the pods, change to enforce:
+    # pod-security.kubernetes.io/enforce: restricted
+---
+# Pod 1: Runs as root with a privileged container
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure-root
+  namespace: secure-ns
+  labels:
+    lab: "8.2"
+    break: "runs-as-root"
+spec:
+  containers:
+  - name: app
+    image: nginx:alpine
+    # VIOLATIONS:
+    # 1. No securityContext → runs as root by default
+    # 2. No readOnlyRootFilesystem → can write anywhere
+    # 3. No capability drop → has NET_RAW, SYS_CHROOT, etc.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 64Mi
+---
+# Pod 2: Explicitly privileged — can escape to host
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure-privileged
+  namespace: secure-ns
+  labels:
+    lab: "8.2"
+    break: "privileged-container"
+spec:
+  containers:
+  - name: app
+    image: alpine:3.18
+    command: ["sleep", "infinity"]
+    securityContext:
+      privileged: true         # CRITICAL VIOLATION: full host access
+      allowPrivilegeEscalation: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 64Mi
+---
+# Pod 3: hostNetwork + hostPID — can see all host processes and network
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure-host-access
+  namespace: secure-ns
+  labels:
+    lab: "8.2"
+    break: "host-access"
+spec:
+  hostNetwork: true      # VIOLATION: shares host network namespace
+  hostPID: true          # VIOLATION: can see all processes on host
+  containers:
+  - name: app
+    image: alpine:3.18
+    command: ["sleep", "infinity"]
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 64Mi

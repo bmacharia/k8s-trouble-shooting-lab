@@ -1,0 +1,101 @@
+---
+# POLICY SET — BROKEN
+# A security engineer implemented NetworkPolicy for the 3-tier app.
+# Requirement: Frontend → Backend, Backend → Database. Nothing else.
+# The policies have TWO bugs that break the app.
+
+# Policy 1: Default deny all ingress in production namespace
+# (This is correct — all-deny baseline is the right starting point)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: production
+  labels:
+    lab: "6.4"
+spec:
+  podSelector: {}     # applies to ALL pods in this namespace
+  policyTypes:
+  - Ingress
+---
+# Policy 2: Default deny all egress in production namespace
+# (Also correct as a baseline — but egress policies need DNS egress!)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: production
+  labels:
+    lab: "6.4"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  # BUG 1: No egress allowed to kube-dns (port 53 UDP/TCP).
+  # Result: ALL DNS resolution fails in this namespace.
+  # Pods will fail to connect to anything by hostname.
+---
+# Policy 3: Allow frontend to receive traffic (from anywhere — it's public)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-ingress
+  namespace: production
+  labels:
+    lab: "6.4"
+spec:
+  podSelector:
+    matchLabels:
+      tier: frontend
+  policyTypes:
+  - Ingress
+  ingress:
+  - {}     # allow from anywhere
+---
+# Policy 4: Allow frontend to reach backend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-backend
+  namespace: production
+  labels:
+    lab: "6.4"
+spec:
+  podSelector:
+    matchLabels:
+      tier: backend
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          tier: frontend
+    ports:
+    - port: 8080
+---
+# Policy 5: Allow backend to reach database
+# BUG 2: The podSelector uses "app: backend" but the database ingress policy
+# uses "tier: backend" as the from-selector. These labels are different.
+# Result: Backend CANNOT reach the database — connection times out.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-to-database
+  namespace: production
+  labels:
+    lab: "6.4"
+    break: "label-mismatch"
+spec:
+  podSelector:
+    matchLabels:
+      tier: database
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: api-service    # BUG 2: no pod has this label — backend has app=backend
+    ports:
+    - port: 5432

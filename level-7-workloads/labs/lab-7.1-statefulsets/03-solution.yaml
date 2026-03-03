@@ -1,0 +1,78 @@
+---
+# FIX 1: Headless service with correct selector
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-headless
+  namespace: databases
+  labels:
+    lab: "7.1"
+spec:
+  clusterIP: None
+  selector:
+    app: redis             # FIXED: matches StatefulSet pod label
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  - port: 16379
+    targetPort: 16379
+    name: cluster-bus
+---
+# FIX 2: StatefulSet using the default StorageClass
+# Delete the broken StatefulSet and its stuck PVCs first:
+#   kubectl delete statefulset redis -n databases
+#   kubectl delete pvc -n databases -l app=redis
+# Then apply this file.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: databases
+  labels:
+    lab: "7.1"
+spec:
+  serviceName: redis-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        - containerPort: 16379
+          name: cluster-bus
+        command: ["redis-server", "--appendonly", "yes"]
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        readinessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      # FIXED: omit storageClassName to use the cluster default StorageClass
+      # OR: set it to "standard" for minikube / "local-path" for kind
+      resources:
+        requests:
+          storage: 1Gi

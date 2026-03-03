@@ -1,0 +1,68 @@
+---
+# FIX 1: Replace cluster-admin with a scoped deployment role for CI/CD
+# The CI/CD runner only needs to deploy to team-dev, not manage the whole cluster.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cicd-deploy-role
+  namespace: team-dev
+  labels:
+    lab: "8.1"
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps"]
+  verbs: ["get", "list", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cicd-runner-deploy
+  namespace: team-dev
+  labels:
+    lab: "8.1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cicd-deploy-role
+subjects:
+- kind: ServiceAccount
+  name: cicd-runner
+  namespace: team-dev
+---
+# REMOVE the cluster-admin binding — do this manually:
+# kubectl delete clusterrolebinding cicd-runner-cluster-admin
+
+# FIX 2: Create role and binding in the CORRECT namespace (team-prod)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: configmap-reader
+  namespace: team-prod   # FIXED: correct namespace
+  labels:
+    lab: "8.1"
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: web-app-configmap-reader
+  namespace: team-prod   # FIXED: correct namespace
+  labels:
+    lab: "8.1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: configmap-reader
+subjects:
+- kind: ServiceAccount
+  name: web-app
+  namespace: team-prod

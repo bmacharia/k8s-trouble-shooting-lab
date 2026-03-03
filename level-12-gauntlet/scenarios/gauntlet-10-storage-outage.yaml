@@ -1,0 +1,123 @@
+---
+# GAUNTLET 10 — The Storage Outage
+#
+# Symptom: A StatefulSet database pod crashed and will not restart.
+# The PVC exists and is Bound. The PV exists.
+# The pod stays in "ContainerCreating" with a FailedMount event.
+#
+# DO NOT READ THE SPOILER until you have tried to debug for 20 minutes.
+#
+# Hint: The node that the pod scheduled on cannot reach the storage backend.
+# The PV is bound but the underlying storage server is unreachable from that node.
+#
+# SPOILER:
+# The StatefulSet pod rescheduled to a new node after its original node failed.
+# The new node has a different network configuration / firewall rule.
+# The PV (NFS or iSCSI) is mounted successfully on the old node but not the new one.
+# Kubernetes shows PVC as "Bound" because the claim exists — it doesn't know
+# the underlying storage is unreachable from the new node.
+# Fix options:
+#   1. Fix the network/firewall on the new node (right fix)
+#   2. Pin the StatefulSet to the node that can reach storage (workaround)
+#   3. Migrate data to a cloud-native storage class that works on all nodes
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gauntlet10
+  labels:
+    lab: gauntlet-10
+---
+# StorageClass using local-path (works in kind/minikube)
+# In a real scenario this would be NFS or a CSI driver with network requirements
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gauntlet10-pv
+  labels:
+    lab: gauntlet-10
+    break: "node-storage-mismatch"
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  # LOCAL PV: bound to a specific node
+  # If the pod schedules on a DIFFERENT node → mount will fail
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - "REPLACE_WITH_NODE_NAME"   # <- set this to ONE specific node
+  local:
+    path: /tmp/gauntlet10-storage
+  storageClassName: local-storage
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-database-0
+  namespace: gauntlet10
+  labels:
+    lab: gauntlet-10
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-storage
+  resources:
+    requests:
+      storage: 1Gi
+  volumeName: gauntlet10-pv    # Bound directly to the specific PV
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: database
+  namespace: gauntlet10
+  labels:
+    lab: gauntlet-10
+spec:
+  serviceName: database-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+  template:
+    metadata:
+      labels:
+        app: database
+    spec:
+      # NO nodeAffinity on the pod → may schedule on any node
+      # But the PV only exists on one specific node → FailedMount on wrong node
+      containers:
+      - name: db
+        image: alpine:3.18
+        command: ["sh", "-c", "echo DB running; sleep infinity"]
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: data-database-0
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: database-headless
+  namespace: gauntlet10
+spec:
+  clusterIP: None
+  selector:
+    app: database
+  ports:
+  - port: 5432

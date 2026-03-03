@@ -1,0 +1,64 @@
+---
+# FIX 1: Job with correct restartPolicy
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: data-processor
+  namespace: default
+  labels:
+    lab: "7.2"
+spec:
+  completions: 5
+  parallelism: 2
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600   # Auto-delete job 1 hour after completion
+  template:
+    spec:
+      containers:
+      - name: processor
+        image: alpine:3.18
+        command: ["sh", "-c", "echo Processing item; sleep 5; echo Done"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi
+      restartPolicy: Never    # FIXED: use Never (or OnFailure for retriable failures)
+---
+# FIX 2: CronJob with all three bugs corrected
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nightly-report
+  namespace: default
+  labels:
+    lab: "7.2"
+spec:
+  schedule: "0 2 * * *"              # FIXED: 2am daily (was "0 25" — invalid)
+  concurrencyPolicy: Forbid           # FIXED: don't allow overlapping runs
+  startingDeadlineSeconds: 3600       # FIXED: catch up if cluster was down < 1 hour
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400  # FIXED: auto-delete jobs after 24 hours
+      template:
+        spec:
+          containers:
+          - name: reporter
+            image: alpine:3.18
+            command:
+            - sh
+            - -c
+            - |
+              echo "Generating nightly report..."
+              date
+              echo "Report complete."
+            resources:
+              requests:
+                cpu: 50m
+                memory: 32Mi
+              limits:
+                cpu: 200m
+                memory: 64Mi
+          restartPolicy: OnFailure

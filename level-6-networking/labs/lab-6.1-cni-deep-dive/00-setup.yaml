@@ -1,0 +1,20 @@
+---
+# Lab 6.1 — CNI Deep Dive
+# Creates two namespaces and a pod in each.
+# The pods should be able to reach each other, but can't.
+# Goal: trace the packet path and find the break.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-alpha
+  labels:
+    lab: "6.1"
+    team: alpha
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-beta
+  labels:
+    lab: "6.1"
+    team: beta

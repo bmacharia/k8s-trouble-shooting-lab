@@ -1,0 +1,150 @@
+---
+# GAUNTLET 2 — The Cascading Failure
+#
+# Symptom: One service becomes slow. Then another. Then everything is down.
+# All pods show Running. No OOMKills. No CrashLoops.
+# The cascade happened within 2 minutes.
+#
+# DO NOT READ THE SPOILER until you have attempted to debug for 20 minutes.
+#
+# Hint: Timeouts without circuit breakers. And a NetworkPolicy that
+# allows connections but not DNS resolution.
+#
+# SPOILER:
+# The database-svc NetworkPolicy blocks egress to kube-dns (port 53).
+# When the DB can't resolve its upstream config endpoint,
+# it starts timing out on its own health check.
+# The backend waits for the DB (no timeout set) → backends become slow.
+# The frontend waits for backends → frontends become slow.
+# All pods remain "Running" because the app process is still alive —
+# it's just stuck waiting for responses that will never come.
+# Fix: Add egress rule for port 53 in the database NetworkPolicy.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gauntlet2
+  labels:
+    lab: gauntlet-02
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: gauntlet2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        tier: frontend
+    spec:
+      containers:
+      - name: app
+        image: hashicorp/http-echo:latest
+        args: ["-text=frontend OK", "-listen=:8080"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: gauntlet2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+        tier: backend
+    spec:
+      containers:
+      - name: app
+        image: hashicorp/http-echo:latest
+        args: ["-text=backend OK", "-listen=:8080"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database
+  namespace: gauntlet2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+  template:
+    metadata:
+      labels:
+        app: database
+        tier: database
+    spec:
+      containers:
+      - name: db
+        image: hashicorp/http-echo:latest
+        args: ["-text=database OK", "-listen=:5432"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: database-svc
+  namespace: gauntlet2
+spec:
+  selector:
+    app: database
+  ports:
+  - port: 5432
+    targetPort: 5432
+---
+# THE BREAK: Egress policy on database that blocks DNS (port 53)
+# Database pods can accept connections (ingress is open)
+# but they cannot resolve ANY hostname (egress to DNS is blocked).
+# This simulates a database trying to resolve its upstream replica endpoint.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: database-egress-block-dns
+  namespace: gauntlet2
+  labels:
+    break: "blocks-dns-egress"
+spec:
+  podSelector:
+    matchLabels:
+      tier: database
+  policyTypes:
+  - Egress
+  egress:
+  # Allow DB to reach backend (for audit logging, hypothetically)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: backend
+  # BUG: No rule for port 53 → DNS resolution is blocked
+  # Database cannot resolve any hostname → any DNS-dependent operation hangs

@@ -1,0 +1,89 @@
+---
+# Frontend app
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: webapp
+  labels:
+    lab: "6.3"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+  namespace: webapp
+spec:
+  selector:
+    app: frontend
+  ports:
+  - port: 80
+    targetPort: 80
+---
+# Upload service — accepts large file payloads
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: upload-service
+  namespace: webapp
+  labels:
+    lab: "6.3"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: upload-service
+  template:
+    metadata:
+      labels:
+        app: upload-service
+    spec:
+      containers:
+      - name: upload-service
+        image: hashicorp/http-echo:latest
+        args:
+        - "-text=Upload service OK"
+        - "-listen=:3000"
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: upload-svc
+  namespace: webapp
+spec:
+  selector:
+    app: upload-service
+  ports:
+  - port: 3000
+    targetPort: 3000

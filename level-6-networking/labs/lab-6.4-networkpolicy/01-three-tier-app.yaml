@@ -1,0 +1,144 @@
+---
+# Tier 1: Frontend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: production
+  labels:
+    lab: "6.4"
+    tier: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        tier: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: hashicorp/http-echo:latest
+        args: ["-text=frontend", "-listen=:8080"]
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+  namespace: production
+spec:
+  selector:
+    app: frontend
+    tier: frontend
+  ports:
+  - port: 8080
+    targetPort: 8080
+---
+# Tier 2: Backend API
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: production
+  labels:
+    lab: "6.4"
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+        tier: backend
+    spec:
+      containers:
+      - name: backend
+        image: hashicorp/http-echo:latest
+        args: ["-text=backend", "-listen=:8080"]
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-svc
+  namespace: production
+spec:
+  selector:
+    app: backend
+    tier: backend
+  ports:
+  - port: 8080
+    targetPort: 8080
+---
+# Tier 3: Database
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database
+  namespace: production
+  labels:
+    lab: "6.4"
+    tier: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+      tier: database
+  template:
+    metadata:
+      labels:
+        app: database
+        tier: database
+    spec:
+      containers:
+      - name: database
+        image: hashicorp/http-echo:latest
+        args: ["-text=database", "-listen=:5432"]
+        ports:
+        - containerPort: 5432
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: database-svc
+  namespace: production
+spec:
+  selector:
+    app: database
+    tier: database
+  ports:
+  - port: 5432
+    targetPort: 5432

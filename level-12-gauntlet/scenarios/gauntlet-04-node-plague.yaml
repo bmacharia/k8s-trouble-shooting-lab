@@ -1,0 +1,81 @@
+---
+# GAUNTLET 4 — The Node Plague
+#
+# Symptom: Pods keep being evicted from node "worker-01".
+# The node shows Ready in kubectl get nodes.
+# kubectl describe node worker-01 shows DiskPressure=True.
+# BUT: df -h on the node shows only 30% disk usage.
+#
+# DO NOT READ THE SPOILER until you have tried to debug for 20 minutes.
+#
+# Hint: inode exhaustion. Docker/containerd image layers + old container logs.
+#
+# SPOILER:
+# df -h shows bytes free. df -i shows INODES free.
+# The /var/lib/containerd directory has thousands of small layer files
+# from many image pulls over time. Each file consumes one inode.
+# When inodes are exhausted, the OS cannot create new files even though
+# bytes are available. The kubelet sees this as DiskPressure and evicts pods.
+# Fix: crictl rmi --prune (remove unused images) to free inodes.
+#
+# This scenario cannot be set up with YAML — it requires running commands on the node.
+# Instructions for simulating inode exhaustion are in the RUNBOOK below.
+
+# For the lab: this file creates a DaemonSet that generates many small files,
+# simulating inode pressure from log accumulation.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gauntlet4
+  labels:
+    lab: gauntlet-04
+---
+# This DaemonSet generates many small files to simulate inode pressure.
+# WARNING: Run in a lab cluster only. This WILL pressure the node.
+# Kill it quickly once you reproduce the symptom.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: inode-stress
+  namespace: gauntlet4
+  labels:
+    lab: gauntlet-04
+spec:
+  selector:
+    matchLabels:
+      app: inode-stress
+  template:
+    metadata:
+      labels:
+        app: inode-stress
+    spec:
+      containers:
+      - name: stressor
+        image: alpine:3.18
+        command:
+        - sh
+        - -c
+        - |
+          # Create thousands of tiny files (1 byte each) to exhaust inodes
+          # Each file uses one inode but almost no disk space
+          mkdir -p /stress-data
+          i=0
+          while true; do
+            echo x > /stress-data/file-$i
+            i=$((i+1))
+            sleep 0.01
+          done
+        volumeMounts:
+        - name: stress-data
+          mountPath: /stress-data
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 100m
+            memory: 32Mi
+      volumes:
+      - name: stress-data
+        emptyDir: {}
+      terminationGracePeriodSeconds: 5

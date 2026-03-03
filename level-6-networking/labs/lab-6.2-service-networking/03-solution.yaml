@@ -1,0 +1,41 @@
+---
+# FIX 1: Correct targetPort to match the container's actual port
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-svc
+  namespace: shop
+  labels:
+    lab: "6.2"
+spec:
+  selector:
+    app: backend
+    tier: api
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080   # FIXED: matches containerPort in the Deployment
+  type: ClusterIP
+---
+# FIX 2: Change externalTrafficPolicy to Cluster so any node routes
+# the request to a backend pod regardless of locality.
+# Use Local ONLY when you need source IP preservation AND have DaemonSet-style pods
+# (one pod per node guaranteed), or use a load balancer that supports it properly.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-nodeport
+  namespace: shop
+  labels:
+    lab: "6.2"
+spec:
+  selector:
+    app: backend
+    tier: api
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    nodePort: 30080
+  type: NodePort
+  externalTrafficPolicy: Cluster  # FIXED: routes across all nodes

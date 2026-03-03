@@ -1,0 +1,34 @@
+---
+# THE BREAK: A NetworkPolicy on team-beta that looks reasonable
+# but accidentally blocks all ingress because the namespaceSelector
+# references a label that team-alpha's namespace does NOT have.
+#
+# Junior engineer added this to "secure" the namespace.
+# The app was working before. Now sender cannot reach receiver.
+# kubectl get pods -A shows everything Running.
+# This is a classic CNI-vs-policy confusion incident.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: receiver-ingress
+  namespace: team-beta
+  labels:
+    lab: "6.1"
+    break: "true"
+spec:
+  podSelector:
+    matchLabels:
+      app: receiver
+  policyTypes:
+  - Ingress
+  ingress:
+  # BUG: This selector requires the SOURCE namespace to have
+  # the label "team=internal" — but team-alpha has label "team=alpha"
+  # So ALL ingress to receiver is blocked, including from team-alpha.
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          team: internal      # <-- WRONG: team-alpha has team=alpha
+      podSelector:
+        matchLabels:
+          app: sender
